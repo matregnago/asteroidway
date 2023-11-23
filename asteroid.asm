@@ -19,6 +19,27 @@
     botao_start db "Jogar"
     botao_exit  db "Sair"
     
+    
+    logo_perdeu db "        __   _____   ___ ___ ",CR,LF
+                db "        \ \ / / _ \ / __| __|",CR,LF
+                db "         \ V / (_) | (__| _| ",CR,LF
+                db "          \_/ \___/ \___|___|",CR,LF
+                db "      ___ ___ ___ ___  ___ _   _  _ ",CR,LF
+                db "     | _ \ __| _ \   \| __| | | || |",CR,LF
+                db "     |  _/ _||   / |) | _|| |_| ||_|",CR,LF
+                db "     |_| |___|_|_\___/|___|\___/ (_)",CR,LF
+
+    logo_venceu db "        __   _____   ___ ___ ",CR,LF
+                db "        \ \ / / _ \ / __| __|",CR,LF
+                db "         \ V / (_) | (__| _| ",CR,LF
+                db "          \_/ \___/ \___|___|",CR,LF
+                db "    __   _____ _  _  ___ ___ _   _ _",CR,LF
+                db "    \ \ / / __| \| |/ __| __| | | | |",CR,LF
+                db "     \ V /| _|| .` | (__| _|| |_| |_|",CR,LF
+                db "      \_/ |___|_|\_|\___|___|\___/(_)",CR,LF
+    
+    
+    
     ; Vetores para desenhar na tela
     desenho_nave db 0Fh,0Fh,0Fh,0Fh,0Fh, 4 , 4 , 4 , 0 , 0
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0 , 0 , 0
@@ -84,11 +105,19 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     velocidade_objetos dw 0
    
     jogando dw 0 ; status do jogo (em jogo=1; menu=0)
+    vida_acabou dw 0
+    tempo_acabou dw 0
     
     num_asteroides_ativos dw 0 ; numero de asteroides ativos na tela 
-    asteroides dw 0,0,0,0,0,0,0 
+    asteroides dw 0,0,0,0,0,0,0 ; coluna atual
                dw 0,0,0,0,0,0,0 ; linha atual
-    linha dw 0
+               
+    escudo dw 0,0 ; coluna, linha
+    escudo_plotado dw 0
+    cura_plotada dw 0
+    cura dw 0,0 ; coluna, linha
+    linha dw 0 ; RETORNO DE UMA FUNCAO - ALTERAR DPS NA REFATORACAO
+    
     
     
 .code 
@@ -577,6 +606,7 @@ BARRA_TEMPO_JOGO proc
    
     TIMER_ACABOU:
     mov jogando, 0 ; mover para a variavel em jogo 0, para dizer que o jogo acabou.
+    mov tempo_acabou, 1
      
      
  FIM_GAME_TIMER:
@@ -889,8 +919,6 @@ TOMAR_DANO proc
     push si
     
     mov ax, vida
-    cmp ax, 0
-    jz FINAL_TOMAR_DANO
     dec ax
     mov vida, ax
     mov bx, 13
@@ -908,6 +936,12 @@ APAGAR_BARRA_HP_LOOP:
     dec dx
     cmp dx, 0
     jnz APAGAR_BARRA_HP_LOOP
+
+    mov ax, vida
+    cmp ax, 0
+    jnz FINAL_TOMAR_DANO
+    mov jogando, 0
+    mov vida_acabou, 1
     
 FINAL_TOMAR_DANO:
     pop si
@@ -918,19 +952,6 @@ FINAL_TOMAR_DANO:
     pop ax
     ret
 endp
-
-
-TESTEE proc
-    
-    push si
-    push di
-    mov si, offset desenho_shield
-    mov di, 28660
-    call DESENHA_ELEMENTO
-    pop di
-    pop si
-    
-ret
 
 CHECA_COLISAO proc
 
@@ -1091,6 +1112,60 @@ CAI_FORA:
   ret
  endp
  
+ 
+ TELA_PERDEU proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    call LIMPAR_TELA
+ 
+    mov al, 0 ; write mode
+    mov bl, 4 ; cor
+    mov dh, 2 ; linha       
+    mov dl, 0 ; coluna   
+    mov cx, 274 ; tamanho da string
+    mov bp, offset logo_perdeu
+    call ESC_STRING
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+        
+        
+ ret
+ endp
+ 
+ 
+ 
+ 
+ 
+  TELA_GANHOU proc
+    push ax
+    push bx
+    push cx
+    push dx
+    call LIMPAR_TELA
+ 
+    mov al, 0 ; write mode
+    mov bl, 0eh ; cor
+    mov dh, 2 ; linha       
+    mov dl, 0 ; coluna   
+    mov cx, 278 ; tamanho da string
+    mov bp, offset logo_venceu
+    call ESC_STRING
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+        
+        
+ ret
+ endp
+ 
+ 
+ 
 ; Proc de LOOP do jogo em funcionamento  
 EM_JOGO proc
 
@@ -1102,10 +1177,17 @@ EM_JOGO proc
         call PLOTA_NOVO_ASTEROIDE
         call CHECA_MOVIMENTO_ASTEROIDE
         call BLOQUEIA_EXECUCAO_PROGRAMA
+        
         mov bx, jogando
         cmp bx, 1
         je LOOP_JOGO    
-    
+        
+        mov bx, vida_acabou
+        cmp bx, 1
+        je TELA_PERDEU
+        mov bx, tempo_acabou
+        cmp bx, 1
+        je TELA_GANHOU
         ret
 endp
  
