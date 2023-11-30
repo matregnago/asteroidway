@@ -1,9 +1,8 @@
 # TO DO
-- Tela de game over
-- Tela de ganhou
-- Tiro da nave
-- Spawn cura e shield
-- Niveis
-- Otimizar/mudar codigo (lodsw/stosw)
-- Aumentar numero asteroides
-- Controlar velocidade objetos
+- Delay nas telas finais
+- Arrumar final do jogo (nivel final)
+- Arrumar cura (colocar nivel 2 e cooldown dos asteroides)
+- Fazer Tiro da nave
+- Fazer Spawn shield
+- Otimizar funções
+- Relatório do jogo
