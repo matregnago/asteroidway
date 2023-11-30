@@ -1,12 +1,21 @@
 .model small
 .stack 1000H
 .data 
-
+    ; Variaveis para alterar a configuracao
+    
+    quantidade_asteroides dw 16
+    velociodade_objetos dw 0
+    velocidade_nave dw 0
+    timer_do_jogo dw 130
+    velocidade_nivel_1 dw 0
+    velocidade_nivel_2 dw 0
+    numero_de_niveis dw 2
+    
     ; Constantes para pular linha
     CR EQU 13
     LF EQU 10
    
-    ; Constantes para a Tela inicial 
+    ; Constantes de escritas
     logo_inicio db "     ___      __               _    __" ,CR,LF
                 db "    / _ | ___/ /____ _______  (_)__/ /" ,CR,LF
                 db "   / __ |(_-< __/ -_) __/ _ \/ / _  /" ,CR,LF
@@ -16,8 +25,9 @@
                 db "           | |/ |/ / _ `/ // /",CR,LF
                 db "           |__/|__/\_,_/\_, / ",CR,LF
                 db "                       /___/  ", CR,LF
-    botao_start db "Jogar"
-    botao_exit  db "Sair"
+    botao_start db "Start"
+    botao_exit  db "Exit"
+    botao_restart db "Restart"
     
     
     logo_perdeu db "        __   _____   ___ ___ ",CR,LF
@@ -40,7 +50,7 @@
     
     
     
-    ; Vetores para desenhar na tela
+   ; Constantes de desenhos
     desenho_nave db 0Fh,0Fh,0Fh,0Fh,0Fh, 4 , 4 , 4 , 0 , 0
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0 , 0 , 0
                  db  0 ,0Fh,0Fh,0Fh, 0 , 0 , 0 , 0 , 0 , 0
@@ -92,34 +102,37 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     posicao_barra_vida  equ 59215 ;coluna 15 linha 185
     posicao_barra_tempo equ 59375 ;coluna 175 linha 185
     posicao_central_nave equ 30234 ; nave centralizada (coluna 154 linha 94)
+    posicao_barra_nivel equ 59355 ; coluna 155 linha 185 nivel do jogo
+    poiscao_nivel_um equ 61915 ; posicao de print do nivel 1
     
-    ; Variaveis globais
     
+    
+    ; Variaveis globais de utilizacao do programa
+
+    velocidades_niveis dw 50000, 40000, 25000, 20000, 10000
+    divisores_niveis  dw 20, 25, 40, 50, 100
     posicao_atual_nave dw 0
-   
-    timer dw 2600 ; 130s * 20
+    asteroides dw 32 dup (0)
+    
+    desl_vet_asteroid dw 32
+    timer dw 0 ; 130s * 20
     vida dw 10 ; hp da nave 
     
-    timer_plot_ast dw 0
-    
-    velocidade_objetos dw 0
-   
+    timer_plot_ast dw 0 ; cooldown para spawn dos asteroides
+    clock_jogo dw 50000
     jogando dw 0 ; status do jogo (em jogo=1; menu=0)
     vida_acabou dw 0
-    tempo_acabou dw 0
     
+    enviar_cura dw 1
+    enviar_shield dw 0
+    
+    posicao_cura dw 0,0
+    posicao_shield dw 0,0
+    
+    nivel dw 1
     num_asteroides_ativos dw 0 ; numero de asteroides ativos na tela 
-    asteroides dw 0,0,0,0,0,0,0 ; coluna atual
-               dw 0,0,0,0,0,0,0 ; linha atual
+    
                
-    escudo dw 0,0 ; coluna, linha
-    escudo_plotado dw 0
-    cura_plotada dw 0
-    cura dw 0,0 ; coluna, linha
-    linha dw 0 ; RETORNO DE UMA FUNCAO - ALTERAR DPS NA REFATORACAO
-    
-    
-    
 .code 
 
 ;----------------------------------------------------------------------------
@@ -253,7 +266,6 @@ ESC_STRING proc
     pop es
     ret
 endp
-
 
 ;Escrever um caractere na tela               
 ;Entrada DL = caracter a ser impresso
@@ -458,7 +470,28 @@ TELA_INICIAL proc
     
     
 ; Proc destinada a inicializar o jogo
-INICIAR_JOGO proc   
+INICIAR_JOGO proc  
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    call ZERAR_ASTEROIDES_ATIVOS
+    
+    call BARRA_DE_TEMPO
+    mov vida, 10
+    mov jogando, 1
+    mov vida_acabou, 0
+    mov num_asteroides_ativos, 0
+    mov timer_plot_ast, 0
+    mov nivel, 1
+    
+    mov si, offset velocidades_niveis
+    mov ax, [si]
+    mov clock_jogo, ax
+    
+    
     call LIMPAR_TELA
     mov si, offset desenho_nave
     mov di, posicao_central_nave
@@ -470,7 +503,12 @@ INICIAR_JOGO proc
     mov jogando, 1
     call EM_JOGO
     
-    
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
     endp    
 
@@ -491,7 +529,7 @@ PRINT_BARRA_HUD proc
         add di, 320
         sub di, cx
         dec dx
-        cmp dx, bx
+        cmp dx, 0
         jne PRINT_BARRA_HUD_LOOP
        
     pop dx
@@ -516,24 +554,87 @@ PRINT_HUD proc
         cmp dx, bx
         jne LOOP_HUD_FUNDO
    
-        mov dx, 10 ; altura
-    mov di, posicao_barra_vida
-    mov al, 2 ; cor da barra 
-    mov cx, 130 ; comprimento da barra
+        call BARRA_DE_VIDA
+        call BARRA_DE_TEMPO
+  
    
-    call PRINT_BARRA_HUD
-       
+    mov dx, 10 ; altura
+    mov di, posicao_barra_nivel
+    mov al, 0 ; cor da barra
+    mov cx, 10 ; comprimento da barra
+   
+   call PRINT_BARRA_HUD
+   
+   mov dx, 2 ; altura
+    mov di, poiscao_nivel_um
+    mov al, 0eh ; cor da barra
+    mov cx, 10 ; comprimento da barra
+   
+   call PRINT_BARRA_HUD
+   
+    ret
+endp
+    
+    
+
+BARRA_DE_TEMPO proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    
+    
+    mov si, offset divisores_niveis
+    mov ax, nivel
+    dec ax
+    mov bx, 2
+    xor dx,dx
+    mul bx
+    mov cx,ax
+    
+    
+    add si, cx
+    mov cx, [si]
+    xor dx, dx
+    mov ax,  timer_do_jogo
+    mul cx
+    mov timer, ax
+    
+    
     mov dx, 10 ; altura
     mov di, posicao_barra_tempo
     mov al, 0bh ; cor da barra
     mov cx, 130 ; comprimento da barra
    
    call PRINT_BARRA_HUD
-
-    ret
+   pop dx
+   pop cx
+   pop bx
+   pop ax
+ret
 endp
-    
-    
+
+BARRA_DE_VIDA proc
+    push ax
+    push bx
+    push cx
+    push dx
+
+    mov vida, 10
+    mov dx, 10 ; altura
+    mov di, posicao_barra_vida
+    mov al, 2 ; cor da barra 
+    mov cx, 130 ; comprimento da barra
+   
+    call PRINT_BARRA_HUD
+      pop dx
+   pop cx
+   pop bx
+   pop ax
+
+ret
+endp
     
 ;Limpa o buffer do teclado da interrupcao 16h
 LIMPA_BUFFER_TECLADO proc
@@ -558,7 +659,8 @@ BLOQUEIA_EXECUCAO_PROGRAMA proc
    
     mov ah, 86h
     xor cx, cx
-    mov dx, 0c350h ; DEFINE OS 50ms
+    ;mov dx, 0c350h ; DEFINE OS 50ms
+    mov dx, clock_jogo
     int 15h
    
     pop ax
@@ -576,13 +678,30 @@ BARRA_TEMPO_JOGO proc
     push dx
     push si
     push di
-    xor dx, dx
+    
+    
     mov di, posicao_barra_tempo
+    
+    
+    mov cx, nivel
+    
+    mov si, offset divisores_niveis
+    mov ax, nivel
+    dec ax
+    mov cx, 2
+    xor dx,dx
+    mul cx
+    mov cx,ax
+    
+    add si, cx
+    mov cx, [si]
+    
+    xor dx,dx
     mov ax, timer
     dec ax
     mov timer, ax
-    mov cx, 20 ;50ms * 20 = 1s
     div cx
+    
     add di, ax
 
     mov si, 0; cor preta
@@ -605,10 +724,7 @@ BARRA_TEMPO_JOGO proc
     jmp FIM_GAME_TIMER
    
     TIMER_ACABOU:
-    mov jogando, 0 ; mover para a variavel em jogo 0, para dizer que o jogo acabou.
-    mov tempo_acabou, 1
-     
-     
+    call PASSAR_NIVEL
  FIM_GAME_TIMER:
      pop di
      pop si
@@ -712,7 +828,6 @@ CHECA_MOVIMENTO_NAVE proc
         MOV AH,01h
         INT 16h
         JZ FIM_MOVIMENTO_NAVE
-        ;check which key is being pressed (AL = ASCII character)
         call LER_KEY
          
         ; Compara se o usuario apertou a arrow down
@@ -784,7 +899,6 @@ PRINTA_OBJETO_DIREITA proc
     PLOTAR_DESENHO:
         xor bx, bx
         mov ax, dx ; Retorno da linha em DX
-        mov linha, dx
         push dx
         mov bx, 320 ; linha * 320
         mul bx
@@ -810,6 +924,7 @@ PLOTA_NOVO_ASTEROIDE proc
     push dx
     push di
     push si
+    
     xor ax, ax
     xor dx, dx
     
@@ -819,49 +934,41 @@ PLOTA_NOVO_ASTEROIDE proc
     mov cx, timer_plot_ast
     cmp ax, cx
     je FINAL_PLOTA_NOVO_ASTEROIDE
+    
     mov timer_plot_ast, ax 
     mov cx, num_asteroides_ativos
-    cmp cx, 7
+    mov ax, quantidade_asteroides
+    cmp cx, ax
     je FINAL_PLOTA_NOVO_ASTEROIDE
     
-    mov cx, 7
+    mov cx, quantidade_asteroides
     xor ax, ax
     mov si, offset asteroides
-LOOP_NOVO_AST:
-    add si, 14
-    lodsw
-    sub si, 2
+    
+ LOOP_NOVO_AST:
+    add si, desl_vet_asteroid
+    mov ax, [si]
     cmp ax, 0
     jne FINAL_LOOP_NOVO_AST
     push si
     mov si, offset desenho_asteroid
     call PRINTA_OBJETO_DIREITA
-    pop si
-    mov ax, linha
-    mov bx, @data
-    mov es, bx
     
-   
-    mov di, si
-    stosw
-    sub di, 2
-    sub di, 14
+    pop si
+    mov ax, dx
+    mov [si], ax
+    sub si, desl_vet_asteroid
     mov ax, 308
-    stosw
-    sub di, 2
+    mov [si], ax
     mov ax, num_asteroides_ativos
     inc ax
-    mov num_asteroides_ativos, ax
-    
-    mov bx, memoria_Video
-    mov es, bx
-    
+    mov num_asteroides_ativos, ax 
     jmp FINAL_PLOTA_NOVO_ASTEROIDE
-    FINAL_LOOP_NOVO_AST:
-    sub si, 14
+    
+  FINAL_LOOP_NOVO_AST:
+    sub si, desl_vet_asteroid
     add si, 2
     loop LOOP_NOVO_AST
-    
     
    FINAL_PLOTA_NOVO_ASTEROIDE:
         pop si
@@ -953,43 +1060,48 @@ FINAL_TOMAR_DANO:
     ret
 endp
 
+; si recebe coluna asteroide
+; cx recebe deslocamento (asteroide ou ajuda)
+; coluna nave 154
 CHECA_COLISAO proc
-
-    ; si recebe coluna asteroide
-    ; coluna nave 154
     push ax
     push cx
     push dx
     push si
     push di
 
-    mov bx, 0
-    cmp ax, 164 ; 154 + 10 (pixel da direita)
-    ja FINAL_DA_PROC
-    cmp ax, 144 ; 154 - 10 (pixel da esquerda)
-    jb FINAL_DA_PROC
-  
+    xor bx, bx
+    xor dx, dx
     
+    cmp ax, 164 ; 154 + 10 (pixel da direita)
+    ja FINAL_CHECA_COLISAO
+    cmp ax, 144 ; 154 - 10 (pixel da esquerda)
+    jb FINAL_CHECA_COLISAO
+  
     mov ax, posicao_atual_nave
     sub ax, 154
+    push cx
     mov cx, 320
-    xor dx, dx
+
     div cx
     mov dx, ax
-    add si, 14
-    xor ax, ax
-    lodsw
-    sub si, 2
+    pop cx
+    add si, cx
+ 
+    mov ax, [si]
     add ax, 10
+    
     cmp ax, dx
-    jb FINAL_DA_PROC
+    jb FINAL_CHECA_COLISAO
+    
     sub ax, 20
     cmp ax, dx
-    ja FINAL_DA_PROC
+    ja FINAL_CHECA_COLISAO
     
     call TOMAR_DANO
     mov bx, 1
-FINAL_DA_PROC:
+    
+FINAL_CHECA_COLISAO:
     pop di
     pop si
     pop dx
@@ -1000,39 +1112,34 @@ endp
 
 
 
-
-;si recebe 
-MORRER proc
+;si recebe asteroide
+APAGA_ASTEROIDE proc
     push ax
     push bx
     push cx
     push dx
     push si
     push di
-    add si, 14
-    lodsw
-    sub si, 2
+    
     xor dx, dx
+    
+    add si, desl_vet_asteroid
+    mov ax, [si]
+    
     mov bx, 320
     mul bx
     mov dx, ax
-    sub si, 14
-    lodsw
-    sub si, 2
+    sub si, desl_vet_asteroid
+    mov ax, [si]
     add ax, dx 
     mov di, ax
     call REMOVE_DESENHO
-    mov bx, @data
-    mov es, bx
-    mov ax, 0
-    mov di, si
-    stosw
-    sub di, 2
-    add di, 14
-    stosw
-    mov bx, memoria_video
-    mov es, bx
     
+    mov ax, 0
+    mov [si], ax
+    add si, desl_vet_asteroid
+    mov [si], ax
+
     mov ax, num_asteroides_ativos
     dec ax
     mov num_asteroides_ativos, ax
@@ -1044,7 +1151,6 @@ MORRER proc
     pop bx
     pop ax
     
-    
     ret
 endp
 
@@ -1055,53 +1161,107 @@ CHECA_MOVIMENTO_ASTEROIDE proc
     push dx
     push di
     push si
-    mov si, offset asteroides
-    mov cx, 7
-TESTE_TESTE:   
+    mov si, offset posicao_cura
+    mov ax, [si]
+    cmp ax, 0
+    jne MOVE_CURA
+    add si, 2
+    mov ax, [si]
+    cmp ax, 0
+    je CHECA_MOV_SHIELD
+    mov cx, 320
+    mul cx
+    sub si, 2
+    mov cx, [si]
+    add ax, cx
+    mov di, ax
+    call REMOVE_DESENHO
     xor ax, ax
-    add si, 14
-    lodsw
-    sub si, 2
-    sub si, 14
-    cmp ax, 0
-    jz CAI_FORA
-    lodsw
-    sub si, 2
-    cmp ax, 0
-    jz MORRE
+    mov [si], ax
+    jmp CHECA_MOV_SHIELD
+MOVE_CURA:
+    mov cx, 2
     call CHECA_COLISAO
     cmp bx, 1
-    jz MORRE
-    add si, 14
-    lodsw
+    jne MOVER_CURA
+    add si, 2
+    mov ax, [si]
+    mov cx, 320
+    mul cx
     sub si, 2
-    xor dx, dx
-    mov bx, 320
-    mul bx
-    mov dx, ax
-    sub si, 14
-    lodsw
+    mov cx, [si]
+    add ax, cx
+    mov di, ax
+    call REMOVE_DESENHO
+    mov ax, 0
+    mov [si], ax
+    add si, 2
+    mov [si], ax
+    call BARRA_DE_VIDA
+    jmp CHECA_MOV_SHIELD
+MOVER_CURA:
+    add si, 2
+    mov ax, [si]
+    mov cx, 320
+    mul cx
     sub si, 2
-    add ax, dx
+    mov cx, [si]
+    add ax, cx
     push si
     mov si, ax
     call MOVE_OBJETO
     pop si
-    mov bx, @data
-    mov es, bx
-    lodsw
-    sub si, 2
+    dec cx
+    mov [si], cx
+    
+CHECA_MOV_SHIELD:
+    
+    mov si, offset asteroides
+    mov cx, quantidade_asteroides
+    
+CHECAGEM_ASTEROIDES:   
+    xor ax, ax
+    xor dx, dx
+    add si, desl_vet_asteroid
+    mov ax, [si]
+    sub si, desl_vet_asteroid
+    cmp ax, 0
+    jz FINAL_CHECAGEM_ASTEROIDE
+    
+    mov ax, [si]
+    cmp ax, 0
+    jz REMOVER_ASTEROIDE
+    push cx
+    mov cx, desl_vet_asteroid
+    call CHECA_COLISAO
+    pop cx
+    cmp bx, 1
+    jz REMOVER_ASTEROIDE
+    
+    add si, desl_vet_asteroid
+    mov ax, [si]
+    mov bx, 320
+    mul bx
+    mov dx, ax
+    sub si, desl_vet_asteroid
+    mov ax, [si]
+    add ax, dx
+    push si
+    mov si, ax
+    call MOVE_OBJETO
+    
+    pop si
+    mov ax, [si]
     dec ax
-    mov di, si
-    stosw
-    mov bx, memoria_video
-    mov es, bx
-    jmp CAI_FORA
-MORRE:
-    call MORRER
-CAI_FORA:
+    mov [si], ax
+    jmp FINAL_CHECAGEM_ASTEROIDE
+    
+REMOVER_ASTEROIDE:
+    call APAGA_ASTEROIDE
+    
+FINAL_CHECAGEM_ASTEROIDE:
     add si, 2
-    loop TESTE_TESTE
+    loop CHECAGEM_ASTEROIDES
     
         pop si
         pop di
@@ -1112,36 +1272,75 @@ CAI_FORA:
   ret
  endp
  
- 
- TELA_PERDEU proc
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    call LIMPAR_TELA
- 
-    mov al, 0 ; write mode
-    mov bl, 4 ; cor
-    mov dh, 2 ; linha       
-    mov dl, 0 ; coluna   
-    mov cx, 274 ; tamanho da string
-    mov bp, offset logo_perdeu
-    call ESC_STRING
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-        
-        
+ PASSAR_NIVEL proc
+     push ax
+     push bx
+     push cx
+     push dx
+     push si
+     push di
+     mov ax, nivel
+     inc ax
+     mov nivel, ax
+     call BARRA_DE_TEMPO
+     xor dx, dx 
+     dec ax
+     mov cx, 2
+     mul cx
+     mov si, offset velocidades_niveis
+     add si, ax
+     mov cx, [si]
+     mov clock_jogo, cx
+     
+     mov enviar_cura,1
+     mov enviar_shield, 1
+     
+     mov bx, poiscao_nivel_um
+     mov cx, 320
+     mul cx
+     sub bx, ax
+
+    mov dx, 2 ; altura
+    mov di, bx
+    mov al, 0eh ; cor da barra
+    mov cx, 10 ; comprimento da barra
+   
+   call PRINT_BARRA_HUD
+   
+     pop di
+     pop si
+     pop dx
+     pop cx
+     pop bx
+     pop ax
  ret
  endp
  
  
  
+
+ ZERAR_ASTEROIDES_ATIVOS proc
+    push ax
+    push bx
+    push cx
+    push dx
+    xor ax, ax
+    mov cx, desl_vet_asteroid
+    mov bx, offset asteroides
+    ZERA_VETOR_ASTEROIDES:
+    mov [bx], ax
+    add bx, 2
+    loop ZERA_VETOR_ASTEROIDES
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+ ret
+ endp
  
  
-  TELA_GANHOU proc
+ 
+ TELA_POS_JOGO proc
     push ax
     push bx
     push cx
@@ -1153,14 +1352,75 @@ CAI_FORA:
     mov dh, 2 ; linha       
     mov dl, 0 ; coluna   
     mov cx, 278 ; tamanho da string
-    mov bp, offset logo_venceu
     call ESC_STRING
+    
+    mov bl, 15 ; cor
+    mov dh, 16 ; linha      
+    mov dl, 17  ; coluna
+    mov cx, 7 ; tamanho da string
+    mov bp, offset botao_restart
+    call ESC_STRING  
+    
+    mov dl, 18  ; coluna
+    add dh, 2 ; linha
+    mov cx, 4 ; tamanho da string
+    mov bp, offset botao_exit
+    call ESC_STRING    
+    
+    ; Chama proc para escolher opcao
+    call SOLICITAR_OPCAO
+    cmp DH,18
+    je FIM_TELA_POS_JOGO
+    cmp DH,16
+    je CHAMA_REINICIO
+    jmp FIM_TELA_POS_JOGO   
+     
+    CHAMA_REINICIO:   
+        pop dx
+        pop cx
+        pop bx
+        pop ax  
+        call INICIAR_JOGO 
+    FIM_TELA_POS_JOGO:
+        call FIM_PROGRAMA   
+ ret
+ endp
+ 
+ ENVIAR_AJUDA proc
+ push ax
+ push bx
+ push cx
+ push dx
+ push si
+ push di
+ 
+    mov ax, enviar_cura
+    cmp ax, 0
+    jz VERIFICAR_SHIELD
+    mov ax, vida
+    cmp ax, 5
+    ja VERIFICAR_SHIELD
+    
+    mov si, offset desenho_cura 
+    call PRINTA_OBJETO_DIREITA
+    mov si, offset posicao_cura
+    mov [si], 308
+    add si, 2
+    mov [si], dx
+    mov enviar_cura, 0
+    
+VERIFICAR_SHIELD:
+    mov ax, enviar_shield
+    cmp ax, 0
+    jz FINAL_VERIF_AJUDA
+    
+FINAL_VERIF_AJUDA:
+    pop di
+    pop si
     pop dx
     pop cx
     pop bx
     pop ax
-        
-        
  ret
  endp
  
@@ -1176,7 +1436,9 @@ EM_JOGO proc
         call LIMPA_BUFFER_TECLADO
         call PLOTA_NOVO_ASTEROIDE
         call CHECA_MOVIMENTO_ASTEROIDE
+        call ENVIAR_AJUDA
         call BLOQUEIA_EXECUCAO_PROGRAMA
+        
         
         mov bx, jogando
         cmp bx, 1
@@ -1184,10 +1446,9 @@ EM_JOGO proc
         
         mov bx, vida_acabou
         cmp bx, 1
-        je TELA_PERDEU
-        mov bx, tempo_acabou
-        cmp bx, 1
-        je TELA_GANHOU
+        mov bp, offset logo_perdeu 
+        call TELA_POS_JOGO
+        
         ret
 endp
  
