@@ -480,7 +480,6 @@ INICIAR_JOGO proc
     push si
     push di
     call ZERAR_ASTEROIDES_ATIVOS
-    
     call BARRA_DE_TEMPO
     mov vida, 10
     mov jogando, 1
@@ -1233,6 +1232,10 @@ TOMAR_DANO proc
     mov ax, vida
     dec ax
     mov vida, ax
+    cmp ax, 5
+    ja NAO_ENVIAR_AJUDA
+    call ENVIAR_AJUDA
+NAO_ENVIAR_AJUDA:
     mov bx, 13
     mul bx
     mov bx, posicao_barra_vida
@@ -1593,35 +1596,16 @@ FINAL_CHECAGEM_ASTEROIDE:
  ret
  endp
  
- ENVIAR_AJUDA proc
- push ax
- push bx
- push cx
- push dx
- push si
- push di
+ ENVIAR_ESCUDO proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
  
-    mov ax, enviar_cura
-    cmp ax, 0
-    jz VERIFICAR_SHIELD
-    mov ax, vida
-    cmp ax, 5
-    ja VERIFICAR_SHIELD
-    
-    mov si, offset desenho_cura 
-    call PRINTA_OBJETO_DIREITA
-    mov si, offset posicao_cura
-    mov [si], 308
-    add si, 2
-    mov [si], dx
-    mov enviar_cura, 0
-    
-VERIFICAR_SHIELD:
-    mov ax, enviar_shield
-    cmp ax, 0
-    jz FINAL_VERIF_AJUDA
-    
-FINAL_VERIF_AJUDA:
+ 
+ 
     pop di
     pop si
     pop dx
@@ -1633,18 +1617,53 @@ FINAL_VERIF_AJUDA:
  
  
  
+ 
+ 
+ 
+ 
+ 
+ ENVIAR_AJUDA proc
+ push ax
+ push bx
+ push cx
+ push dx
+ push si
+ push di
+ 
+    mov ax, enviar_cura
+    cmp ax, 0
+    jz FINAL_VERIF_AJUDA
+    mov ax, vida
+    cmp ax, 5
+    ja FINAL_VERIF_AJUDA
+    
+    mov si, offset desenho_cura 
+    call PRINTA_OBJETO_DIREITA
+    mov si, offset posicao_cura
+    mov [si], 308
+    add si, 2
+    mov [si], dx
+    mov enviar_cura, 0
+    
+FINAL_VERIF_AJUDA:
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+ ret
+ endp
+ 
 ; Proc de LOOP do jogo em funcionamento  
 EM_JOGO proc
 
      LOOP_JOGO:
-
         call BARRA_TEMPO_JOGO
-    
         call CHECA_MOVIMENTO_NAVE
         call LIMPA_BUFFER_TECLADO
         call PLOTA_NOVO_ASTEROIDE
         call CHECA_MOVIMENTO_ASTEROIDE
-        call ENVIAR_AJUDA
         call MOVER_TIRO
         call BLOQUEIA_EXECUCAO_PROGRAMA
         mov bx, jogando
