@@ -15,6 +15,7 @@
     CR EQU 13
     LF EQU 10
    
+
     ; Constantes de escritas
     logo_inicio db "     ___      __               _    __" ,CR,LF
                 db "    / _ | ___/ /____ _______  (_)__/ /" ,CR,LF
@@ -113,7 +114,8 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     divisores_niveis  dw 20, 25, 40, 50, 100
     posicao_atual_nave dw 0
     asteroides dw 32 dup (0)
-    
+    posicao_atual_tiro dw 0,0
+
     desl_vet_asteroid dw 32
     timer dw 0 ; 130s * 20
     vida dw 10 ; hp da nave 
@@ -836,7 +838,9 @@ CHECA_MOVIMENTO_NAVE proc
         ; Compara se o usuario apertou a arrow up
         cmp AH, 72
         jz MOVER_PARA_CIMA
-            
+        
+        cmp AL, 32
+        jz ATIRAR
         jmp FIM_MOVIMENTO_NAVE
         
         MOVER_PARA_CIMA:
@@ -852,6 +856,12 @@ CHECA_MOVIMENTO_NAVE proc
         call MOVE_NAVE_BAIXO 
         jmp FIM_MOVIMENTO_NAVE
         
+    ATIRAR:
+        cmp posicao_atual_tiro, 0
+        jnz FIM_MOVIMENTO_NAVE
+        
+        call CRIA_TIRO
+       
         
         FIM_MOVIMENTO_NAVE:
         pop di
@@ -862,6 +872,201 @@ CHECA_MOVIMENTO_NAVE proc
         pop ax
     ret
 endp
+
+CRIA_TIRO proc
+        push ax
+        push bx
+        push cx
+        push dx
+        push si
+        push di 
+        
+        mov si, offset posicao_atual_tiro
+        mov ax, posicao_atual_nave
+     
+        mov bx, 166 ; 154 (coluna nave) + 12 (espa?amento para sair o tiro)
+        mov [si], bx ; armazena coluna do tiro
+        
+        sub ax, 154
+        mov cx, 320
+        xor dx, dx
+        div cx
+        add ax, 5 ; deslocamento para centralizar o tiro 
+        add si, 2 
+        mov [si], ax ; armazena linha do tipo
+        
+        xor dx, dx
+        
+        mov bx, 320
+        mul bx
+        mov bx, ax
+        sub si, 2
+        mov ax, [si]
+        add ax, bx
+        
+        mov di, ax
+    
+        mov ax, memoria_video
+        mov ds, ax
+        mov cx, 10
+    
+        mov [di], 0fh
+            
+        mov ax, @data
+        mov ds, ax
+        
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax 
+   ret
+endp
+
+REMOVER_TIRO proc
+        push ax
+        push bx
+        push cx
+        push dx
+        push si
+        push di 
+
+        mov si, offset posicao_atual_tiro
+        add si, 2
+        mov ax, [si]
+        mov bx, 320
+        xor dx,dx
+        mul bx
+        mov bx, ax
+        sub si, 2
+        mov ax, [si]
+        add ax, bx 
+        mov di, ax
+        mov ax, memoria_video
+        mov ds, ax
+    
+        mov [di], 0
+            
+        mov ax, @data
+        mov ds, ax
+
+        mov ax, [si]
+        mov [si], 0
+        add si,2
+        mov [si], 0
+        
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax 
+    ret
+endp
+
+MOVER_TIRO proc
+        push ax
+        push bx
+        push cx
+        push dx
+        push si
+        push di 
+
+        mov si, offset posicao_atual_tiro
+        mov ax, [si]
+        cmp ax, 319
+        jz APAGAR_TIRO
+        add si, 2
+        mov ax, [si]
+        cmp ax, 0
+        jz FIM_MOVER_TIRO
+        mov bx, 320
+        xor dx,dx
+        mul bx
+        mov bx, ax
+        sub si, 2
+        mov ax, [si]
+        push ax
+        add ax, bx 
+        
+        mov di, ax
+        
+        mov ax, memoria_video
+        mov ds, ax
+        mov cx, 10
+    
+        mov [di], 0
+        inc di
+        mov [di], 0fh
+            
+        mov ax, @data
+        mov ds, ax
+        
+        pop ax
+        inc ax
+        mov [si], ax
+        
+       jmp FIM_MOVER_TIRO
+        
+    APAGAR_TIRO:
+      call REMOVER_TIRO 
+        
+        
+  
+    FIM_MOVER_TIRO:
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax 
+   ret
+endp
+
+
+COLISAO_TIRO proc
+        push ax
+        push bx
+        push cx
+        push dx
+        push si
+        push di 
+        
+        mov bx, offset posicao_atual_tiro
+        mov cx, quantidade_asteroides
+        mov ax, [si]
+        mov dx, [bx]
+        dec ax
+        cmp ax, dx
+        ja FIM_COLISAO_TIRO
+        add ax, 10
+        cmp ax, dx
+        jb FIM_COLISAO_TIRO
+        add si, desl_vet_asteroid
+        mov ax, [si]
+        add bx, 2
+        mov dx, [bx]
+        cmp dx, ax
+        jb FIM_COLISAO_TIRO
+        add ax, 10
+        cmp dx, ax
+        ja FIM_COLISAO_TIRO
+        sub si, desl_vet_asteroid
+        sub bx, 2
+        call REMOVER_TIRO
+        call APAGA_ASTEROIDE
+    FIM_COLISAO_TIRO:
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax 
+ret
+endp
+
+
 
 
 
@@ -1073,6 +1278,7 @@ CHECA_COLISAO proc
     xor bx, bx
     xor dx, dx
     
+    
     cmp ax, 164 ; 154 + 10 (pixel da direita)
     ja FINAL_CHECA_COLISAO
     cmp ax, 144 ; 154 - 10 (pixel da esquerda)
@@ -1260,6 +1466,7 @@ REMOVER_ASTEROIDE:
     call APAGA_ASTEROIDE
     
 FINAL_CHECAGEM_ASTEROIDE:
+    call COLISAO_TIRO
     add si, 2
     loop CHECAGEM_ASTEROIDES
     
@@ -1432,14 +1639,14 @@ EM_JOGO proc
      LOOP_JOGO:
 
         call BARRA_TEMPO_JOGO
+    
         call CHECA_MOVIMENTO_NAVE
         call LIMPA_BUFFER_TECLADO
         call PLOTA_NOVO_ASTEROIDE
         call CHECA_MOVIMENTO_ASTEROIDE
         call ENVIAR_AJUDA
+        call MOVER_TIRO
         call BLOQUEIA_EXECUCAO_PROGRAMA
-        
-        
         mov bx, jogando
         cmp bx, 1
         je LOOP_JOGO    
