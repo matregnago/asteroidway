@@ -4,12 +4,9 @@
     ; Variaveis para alterar a configuracao
     
     quantidade_asteroides dw 16
-    velociodade_objetos dw 0
-    velocidade_nave dw 0
-    timer_do_jogo dw 130
-    velocidade_nivel_1 dw 0
-    velocidade_nivel_2 dw 0
-    numero_de_niveis dw 2
+    timer_do_jogo dw 130 ;segundos
+    cooldown_shield dw 15 ;segundos
+    tempo_imunidade_escudo dw 5 ;segundos
     
     ; Constantes para pular linha
     CR EQU 13
@@ -63,6 +60,17 @@
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0 , 0 , 0
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 4 , 4 , 4 , 0 , 0
                  
+desenho_nave_imune   db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
+                     db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
+                     db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
+                     db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
+                     db  0 , 0 , 9 , 7 , 3 ,0Fh, 7 , 7 , 7 , 9
+                     db  0 , 0 , 9 , 7 , 1 , 9 , 7 , 7 , 7 , 9
+                     db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
+                     db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
+                     db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
+                     db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
+                 
 desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
                  db  0 , 0 ,0Fh,0Fh,0Fh,0Fh, 7 , 7 , 0 , 0
                  db  0 ,0Fh,0Fh,0Fh,0Fh, 7 , 7 , 7 , 7 , 0
@@ -110,7 +118,7 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     
     ; Variaveis globais de utilizacao do programa
 
-    velocidades_niveis dw 50000, 40000, 25000, 20000, 10000
+    velocidades_niveis dw 1000, 40000, 25000, 20000, 10000
     divisores_niveis  dw 20, 25, 40, 50, 100
     posicao_atual_nave dw 0
     asteroides dw 32 dup (0)
@@ -121,6 +129,10 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     vida dw 10 ; hp da nave 
     
     timer_plot_ast dw 0 ; cooldown para spawn dos asteroides
+    timer_plot_shield dw 0
+    timer_imunidade_nave dw 0
+    imune dw 0
+    
     clock_jogo dw 50000
     jogando dw 0 ; status do jogo (em jogo=1; menu=0)
     vida_acabou dw 0
@@ -1140,6 +1152,22 @@ PLOTA_NOVO_ASTEROIDE proc
     je FINAL_PLOTA_NOVO_ASTEROIDE
     
     mov timer_plot_ast, ax 
+   
+   cmp enviar_shield, 0
+   je PLOTAR_ASTEROIDE
+   mov ax, timer_plot_shield
+   cmp ax, 0
+   jne PLOTAR_ASTEROIDE
+   mov si, offset desenho_shield
+   call PRINTA_OBJETO_DIREITA
+   call RESET_TIMER_ESCUDO
+   mov si, offset posicao_shield
+   mov [si], 308
+   add si, 2
+   mov [si], dx
+   jmp FINAL_PLOTA_NOVO_ASTEROIDE
+    
+PLOTAR_ASTEROIDE:
     mov cx, num_asteroides_ativos
     mov ax, quantidade_asteroides
     cmp cx, ax
@@ -1307,7 +1335,6 @@ CHECA_COLISAO proc
     cmp ax, dx
     ja FINAL_CHECA_COLISAO
     
-    call TOMAR_DANO
     mov bx, 1
     
 FINAL_CHECA_COLISAO:
@@ -1424,11 +1451,65 @@ MOVER_CURA:
     mov [si], cx
     
 CHECA_MOV_SHIELD:
+    mov si, offset posicao_shield
+    mov ax, [si]
+    cmp ax, 0
+    jne MOVE_SHIELD
+    add si, 2
+    mov ax, [si]
+    cmp ax, 0
+    je CHECAGEM_ASTEROIDES
+    mov cx, 320
+    mul cx
+    sub si, 2
+    mov cx, [si]
+    add ax, cx
+    mov di, ax
+    call REMOVE_DESENHO
+    xor ax, ax
+    mov [si], ax
+    jmp CHECAGEM_ASTEROIDES
+MOVE_SHIELD:
+    mov cx, 2
+    call CHECA_COLISAO
+    cmp bx, 1
+    jne MOVER_SHIELD
+    add si, 2
+    mov ax, [si]
+    mov cx, 320
+    mul cx
+    sub si, 2
+    mov cx, [si]
+    add ax, cx
+    mov di, ax
+    call REMOVE_DESENHO
+    mov ax, 0
+    mov [si], ax
+    add si, 2
+    mov [si], ax
+    call DEIXAR_NAVE_IMUNE
+    jmp CHECAGEM_ASTEROIDES
+MOVER_SHIELD:
+    add si, 2
+    mov ax, [si]
+    mov cx, 320
+    mul cx
+    sub si, 2
+    mov cx, [si]
+    add ax, cx
+    push si
+    mov si, ax
+    call MOVE_OBJETO
+    pop si
+    dec cx
+    mov [si], cx
     
+    
+CHECAGEM_ASTEROIDES:
     mov si, offset asteroides
     mov cx, quantidade_asteroides
     
-CHECAGEM_ASTEROIDES:   
+LOOP_CHECAGEM_ASTEROIDES:   
     xor ax, ax
     xor dx, dx
     add si, desl_vet_asteroid
@@ -1445,8 +1526,7 @@ CHECAGEM_ASTEROIDES:
     call CHECA_COLISAO
     pop cx
     cmp bx, 1
-    jz REMOVER_ASTEROIDE
-    
+    jz COLISAO_COM_ASTEROIDE
     add si, desl_vet_asteroid
     mov ax, [si]
     mov bx, 320
@@ -1465,13 +1545,17 @@ CHECAGEM_ASTEROIDES:
     mov [si], ax
     jmp FINAL_CHECAGEM_ASTEROIDE
     
+COLISAO_COM_ASTEROIDE:
+    cmp imune, 1
+    je REMOVER_ASTEROIDE
+    call TOMAR_DANO
 REMOVER_ASTEROIDE:
     call APAGA_ASTEROIDE
     
 FINAL_CHECAGEM_ASTEROIDE:
     call COLISAO_TIRO
     add si, 2
-    loop CHECAGEM_ASTEROIDES
+    loop LOOP_CHECAGEM_ASTEROIDES
     
         pop si
         pop di
@@ -1493,6 +1577,7 @@ FINAL_CHECAGEM_ASTEROIDE:
      inc ax
      mov nivel, ax
      call BARRA_DE_TEMPO
+     call RESET_TIMER_ESCUDO
      xor dx, dx 
      dec ax
      mov cx, 2
@@ -1525,9 +1610,6 @@ FINAL_CHECAGEM_ASTEROIDE:
      pop ax
  ret
  endp
- 
- 
- 
 
  ZERAR_ASTEROIDES_ATIVOS proc
     push ax
@@ -1595,17 +1677,43 @@ FINAL_CHECAGEM_ASTEROIDE:
         call FIM_PROGRAMA   
  ret
  endp
- 
- ENVIAR_ESCUDO proc
+ RESET_TIMER_ESCUDO proc
+     push ax
+    push bx
+    push cx
+    push dx
+    mov bx, offset divisores_niveis
+    mov ax, nivel
+    dec ax
+    mov cx, 2
+    mul cx
+    xor dx, dx
+    add bx, ax
+    mov ax, [bx]
+    mov dx, cooldown_shield
+    mul dx
+    mov timer_plot_shield, ax
+         pop dx
+        pop cx
+        pop bx
+        pop ax  
+ ret
+ endp
+ TIMER_ESCUDO proc
     push ax
     push bx
     push cx
     push dx
     push si
     push di
- 
- 
- 
+    cmp enviar_shield, 0
+    je FIM_TIMER_ESCUDO
+    mov ax, timer_plot_shield
+    cmp ax, 0
+    je FIM_TIMER_ESCUDO
+    dec ax
+    mov timer_plot_shield, ax
+ FIM_TIMER_ESCUDO:
     pop di
     pop si
     pop dx
@@ -1614,13 +1722,6 @@ FINAL_CHECAGEM_ASTEROIDE:
     pop ax
  ret
  endp
- 
- 
- 
- 
- 
- 
- 
  
  ENVIAR_AJUDA proc
  push ax
@@ -1655,10 +1756,76 @@ FINAL_VERIF_AJUDA:
  ret
  endp
  
+ 
+TIMER_IMUNIDADE proc
+     push ax
+     push bx
+     push cx
+     push dx
+     push si
+     push di
+     cmp imune, 0
+     je FIM_TIMER_IMUNIDADE
+     cmp timer_imunidade_nave,0
+     je VOLTAR_NAVE_PADRAO
+     mov ax, timer_imunidade_nave
+     dec ax
+     mov timer_imunidade_nave, ax
+     jmp FIM_TIMER_IMUNIDADE
+ VOLTAR_NAVE_PADRAO:
+    mov imune, 0
+    mov di, posicao_atual_nave
+    mov si, offset desenho_nave
+    call DESENHA_ELEMENTO
+    
+ FIM_TIMER_IMUNIDADE:
+     pop di
+     pop si
+     pop dx
+     pop cx
+     pop bx
+     pop ax
+ret
+endp
+ 
+DEIXAR_NAVE_IMUNE proc
+     push ax
+     push bx
+     push cx
+     push dx
+     push si
+     push di
+    mov imune, 1
+    mov si, offset desenho_nave_imune
+    mov di, posicao_atual_nave
+    call DESENHA_ELEMENTO
+    mov ax, nivel
+    dec ax
+    mov cx, 2
+    mul cx
+    mov bx, offset divisores_niveis
+    add bx, ax
+    mov ax, [bx]
+    mov dx, tempo_imunidade_escudo
+    mul dx
+    mov timer_imunidade_nave, ax
+      pop di
+     pop si
+     pop dx
+     pop cx
+     pop bx
+     pop ax
+ret
+endp
+
+
+ 
 ; Proc de LOOP do jogo em funcionamento  
 EM_JOGO proc
 
      LOOP_JOGO:
+        call TIMER_ESCUDO
+        call TIMER_IMUNIDADE
         call BARRA_TEMPO_JOGO
         call CHECA_MOVIMENTO_NAVE
         call LIMPA_BUFFER_TECLADO
