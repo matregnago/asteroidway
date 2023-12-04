@@ -118,7 +118,7 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     
     ; Variaveis globais de utilizacao do programa
 
-    velocidades_niveis dw 1000, 40000, 25000, 20000, 10000
+    velocidades_niveis dw 50000, 40000, 25000, 20000, 10000
     divisores_niveis  dw 20, 25, 40, 50, 100
     posicao_atual_nave dw 0
     asteroides dw 32 dup (0)
@@ -496,6 +496,7 @@ INICIAR_JOGO proc
     mov vida, 10
     mov jogando, 1
     mov vida_acabou, 0
+    mov enviar_shield, 0
     mov num_asteroides_ativos, 0
     mov timer_plot_ast, 0
     mov nivel, 1
@@ -1035,17 +1036,16 @@ MOVER_TIRO proc
    ret
 endp
 
-
+; dx - deslocamento (desl_vet_asteroid ou 2)
+; si - endere?o coluna objeto na memoria
 COLISAO_TIRO proc
         push ax
         push bx
         push cx
-        push dx
         push si
         push di 
-        
+        mov cx, dx
         mov bx, offset posicao_atual_tiro
-        mov cx, quantidade_asteroides
         mov ax, [si]
         mov dx, [bx]
         dec ax
@@ -1054,7 +1054,7 @@ COLISAO_TIRO proc
         add ax, 10
         cmp ax, dx
         jb FIM_COLISAO_TIRO
-        add si, desl_vet_asteroid
+        add si, cx
         mov ax, [si]
         add bx, 2
         mov dx, [bx]
@@ -1063,14 +1063,13 @@ COLISAO_TIRO proc
         add ax, 10
         cmp dx, ax
         ja FIM_COLISAO_TIRO
-        sub si, desl_vet_asteroid
+        sub si, cx
         sub bx, 2
+        mov dx, 1
         call REMOVER_TIRO
-        call APAGA_ASTEROIDE
     FIM_COLISAO_TIRO:
         pop di
         pop si
-        pop dx
         pop cx
         pop bx
         pop ax 
@@ -1449,7 +1448,18 @@ MOVER_CURA:
     pop si
     dec cx
     mov [si], cx
-    
+    mov dx, 2
+    call COLISAO_TIRO
+    cmp dx, 1
+    jne CHECA_MOV_SHIELD
+    dec ax
+    mov di, ax
+    call REMOVE_DESENHO
+    mov ax, 0
+    mov [si], ax
+    add si, 2
+    mov [si], ax
+   
 CHECA_MOV_SHIELD:
     mov si, offset posicao_shield
     mov ax, [si]
@@ -1503,12 +1513,23 @@ MOVER_SHIELD:
     pop si
     dec cx
     mov [si], cx
+    mov dx, 2
+    call COLISAO_TIRO
+    cmp dx, 1
+    jne CHECAGEM_ASTEROIDES
+    dec ax
+    mov di, ax
+    call REMOVE_DESENHO
+    mov ax, 0
+    mov [si], ax
+    add si, 2
+    mov [si], ax  
     
     
 CHECAGEM_ASTEROIDES:
+  
     mov si, offset asteroides
-    mov cx, quantidade_asteroides
-    
+    mov cx, quantidade_asteroides  
 LOOP_CHECAGEM_ASTEROIDES:   
     xor ax, ax
     xor dx, dx
@@ -1553,7 +1574,12 @@ REMOVER_ASTEROIDE:
     call APAGA_ASTEROIDE
     
 FINAL_CHECAGEM_ASTEROIDE:
+    mov dx, desl_vet_asteroid
     call COLISAO_TIRO
+    cmp dx, 1
+    jne FIM_LOOP_CHECAGEM_ASTEROIDES
+    call APAGA_ASTEROIDE
+FIM_LOOP_CHECAGEM_ASTEROIDES:
     add si, 2
     loop LOOP_CHECAGEM_ASTEROIDES
     
@@ -1574,6 +1600,8 @@ FINAL_CHECAGEM_ASTEROIDE:
      push si
      push di
      mov ax, nivel
+     cmp ax, 5
+     je VENCEU_JOGO
      inc ax
      mov nivel, ax
      call BARRA_DE_TEMPO
@@ -1601,7 +1629,13 @@ FINAL_CHECAGEM_ASTEROIDE:
     mov cx, 10 ; comprimento da barra
    
    call PRINT_BARRA_HUD
+   jmp FINAL_PASSAR_NIVEL
+    VENCEU_JOGO:
+    mov bp, offset logo_venceu
+    mov al, 0eh
+    call TELA_POS_JOGO
    
+FINAL_PASSAR_NIVEL:
      pop di
      pop si
      pop dx
@@ -1631,16 +1665,39 @@ FINAL_CHECAGEM_ASTEROIDE:
  endp
  
  
- 
+ ; al = cor do fundo
  TELA_POS_JOGO proc
     push ax
     push bx
     push cx
     push dx
-    call LIMPAR_TELA
- 
+    
+    mov cx, 200
+    mov di, 0
+
+    LOOP_PINTA_TELA_POS_JOGO:
+    mov dx,320
+LOOP_PINTA_LINHA: 
+    stosb
+    dec dx
+    cmp dx, 0
+    jne LOOP_PINTA_LINHA
+    
+    
+    push cx
+    push ax
+        mov ah, 86H
+        mov cx, 0
+        mov dx, 25000
+        int 15h
+
+        pop ax
+        pop cx
+        
+        loop LOOP_PINTA_TELA_POS_JOGO
+        call LIMPAR_TELA
     mov al, 0 ; write mode
-    mov bl, 0eh ; cor
+    mov bl, 0fh ; cor
     mov dh, 2 ; linha       
     mov dl, 0 ; coluna   
     mov cx, 278 ; tamanho da string
@@ -1840,6 +1897,7 @@ EM_JOGO proc
         mov bx, vida_acabou
         cmp bx, 1
         mov bp, offset logo_perdeu 
+        mov al, 4
         call TELA_POS_JOGO
         
         ret
