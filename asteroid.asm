@@ -2,18 +2,17 @@
 .stack 1000H
 .data 
     ; Variaveis para alterar a configuracao
-    
     quantidade_asteroides dw 16
-    timer_do_jogo dw 130 ;segundos
+    timer_do_jogo dw 130 ;segundos por nivel
     cooldown_shield dw 15 ;segundos
     tempo_imunidade_escudo dw 5 ;segundos
+    nivel_maximo dw 5
     
     ; Constantes para pular linha
     CR EQU 13
     LF EQU 10
-   
 
-    ; Constantes de escritas
+    ; Constantes de escrita
     logo_inicio db "     ___      __               _    __" ,CR,LF
                 db "    / _ | ___/ /____ _______  (_)__/ /" ,CR,LF
                 db "   / __ |(_-< __/ -_) __/ _ \/ / _  /" ,CR,LF
@@ -22,11 +21,11 @@
                 db "           | | /| / /__ ___ __",CR,LF
                 db "           | |/ |/ / _ `/ // /",CR,LF
                 db "           |__/|__/\_,_/\_, / ",CR,LF
-                db "                       /___/  ", CR,LF
-    botao_start db "Start"
-    botao_exit  db "Exit"
-    botao_restart db "Restart"
+                db "                       /___/  $",CR,LF
     
+    botao_start db "Start$"
+    botao_exit  db "Exit$"
+    botao_restart db "Restart$"
     
     logo_perdeu db "        __   _____   ___ ___ ",CR,LF
                 db "        \ \ / / _ \ / __| __|",CR,LF
@@ -35,7 +34,7 @@
                 db "      ___ ___ ___ ___  ___ _   _  _ ",CR,LF
                 db "     | _ \ __| _ \   \| __| | | || |",CR,LF
                 db "     |  _/ _||   / |) | _|| |_| ||_|",CR,LF
-                db "     |_| |___|_|_\___/|___|\___/ (_)",CR,LF
+                db "     |_| |___|_|_\___/|___|\___/ (_)$",CR,LF
 
     logo_venceu db "        __   _____   ___ ___ ",CR,LF
                 db "        \ \ / / _ \ / __| __|",CR,LF
@@ -44,9 +43,7 @@
                 db "    __   _____ _  _  ___ ___ _   _ _",CR,LF
                 db "    \ \ / / __| \| |/ __| __| | | | |",CR,LF
                 db "     \ V /| _|| .` | (__| _|| |_| |_|",CR,LF
-                db "      \_/ |___|_|\_|\___|___|\___/(_)",CR,LF
-    
-    
+                db "      \_/ |___|_|\_|\___|___|\___/(_)$",CR,LF   
     
    ; Constantes de desenhos
     desenho_nave db 0Fh,0Fh,0Fh,0Fh,0Fh, 4 , 4 , 4 , 0 , 0
@@ -60,16 +57,16 @@
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0 , 0 , 0
                  db 0Fh,0Fh,0Fh,0Fh,0Fh, 4 , 4 , 4 , 0 , 0
                  
-desenho_nave_imune   db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
-                     db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
-                     db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
-                     db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
-                     db  0 , 0 , 9 , 7 , 3 ,0Fh, 7 , 7 , 7 , 9
-                     db  0 , 0 , 9 , 7 , 1 , 9 , 7 , 7 , 7 , 9
-                     db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
-                     db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
-                     db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
-                     db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
+desenho_nave_imune db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
+                   db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
+                   db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
+                   db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
+                   db  0 , 0 , 9 , 7 , 3 ,0Fh, 7 , 7 , 7 , 9
+                   db  0 , 0 , 9 , 7 , 1 , 9 , 7 , 7 , 7 , 9
+                   db  0 , 9 , 7 , 7 , 7 , 7 , 7 , 7 , 0 , 0
+                   db  0 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0 , 0
+                   db  7 , 7 , 7 , 7 , 7 , 0 , 0 , 0 , 0 , 0
+                   db  7 , 7 , 7 , 7 , 7 , 9 , 9 , 9 , 0 , 0
                  
 desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
                  db  0 , 0 ,0Fh,0Fh,0Fh,0Fh, 7 , 7 , 0 , 0
@@ -114,41 +111,34 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     posicao_barra_nivel equ 59355 ; coluna 155 linha 185 nivel do jogo
     posicao_nivel_um equ 61915 ; posicao de print do nivel 1
     
-    
-    
     ; Variaveis globais de utilizacao do programa
-
-    velocidades_niveis dw 1000, 40000, 25000, 20000, 10000
+    velocidades_niveis dw 50000, 40000, 25000, 20000, 10000
     divisores_niveis  dw 20, 25, 40, 50, 100
+    
     posicao_atual_nave dw 0
-    asteroides dw 32 dup (0)
     posicao_atual_tiro dw 0,0
+    posicao_cura dw 0,0
+    posicao_shield dw 0,0
 
     desl_vet_asteroid dw 32
-    timer dw 0 ; 130s * 20
-    vida dw 10 ; hp da nave 
+    asteroides dw 32 dup (0)
+    num_asteroides_ativos dw 0 ; numero de asteroides ativos na tela 
     
+    timer dw 0 
+    vida dw 10 
+    clock_jogo dw 0
     timer_plot_ast dw 0 ; cooldown para spawn dos asteroides
     timer_plot_shield dw 0
     timer_imunidade_nave dw 0
-    imune dw 0
     
-    clock_jogo dw 50000
+    imune dw 0
     jogando dw 0 ; status do jogo (em jogo=1; menu=0)
     vida_acabou dw 0
-    
     enviar_cura dw 1
     enviar_shield dw 0
+    nivel dw 1  
     
-    posicao_cura dw 0,0
-    posicao_shield dw 0,0
-    
-    nivel dw 1
-    num_asteroides_ativos dw 0 ; numero de asteroides ativos na tela 
-    
-               
 .code 
-
 ;----------------------------------------------------------------------------
 ;
 ;                               PROCs GERAIS
@@ -165,8 +155,10 @@ endp
 
 ; Proc para iniciar o modo de video 13h da int 10h (320x200, 256 cores)
 MODO_DE_VIDEO proc
+    push ax
     mov ax, 13h
-    int 10h         
+    int 10h 
+    pop ax
     ret
 endp
 
@@ -175,14 +167,14 @@ endp
 LIMPAR_TELA proc
     push ax
     push cx
-    push di
+    push dx
            
     mov di, 0
     mov al, 0
     mov cx, 64000
     rep stosb
    
-    pop di
+    pop dx
     pop cx
     pop ax 
     ret 
@@ -218,7 +210,7 @@ endp
 
 
 ;Remove um desenho da tela
-;DI recebe a posicao do primeiro pixel do sprite
+;DI recebe a posicao do primeiro pixel do desenho
 REMOVE_DESENHO proc
         push ax
         push dx
@@ -245,18 +237,16 @@ REMOVE_DESENHO proc
 endp
 
 ; Proc para escrever texto na tela
-; al: write mode
 ; bl: cor
 ; dh: linha       
-; dl: coluna   
-; cx: tamanho da string
+; dl: coluna
 ; bp: end. inicio da string
      
 ESC_STRING proc 
      push es
     push ax
     push bx
-    push di
+    push dx
     push si
     push bp
 
@@ -266,7 +256,8 @@ ESC_STRING proc
     mov es, ax
    
     mov bh, 0
-   
+    mov si, bp
+    call CALCULA_TAM_STRING
     mov ah, 13h
     mov al, 1
     int 10h
@@ -274,13 +265,36 @@ ESC_STRING proc
     mov sp, di
     pop bp
     pop si
-    pop di
+    pop dx
     pop bx
     pop ax
     pop es
     ret
 endp
 
+;retorna em CX
+;recebe inicio da string em si
+CALCULA_TAM_STRING proc
+    push ax
+    push si
+    xor cx, cx
+    LOOP_TAM_STRING:
+        xor ax, ax
+        mov al, [si]
+        cmp al, 36
+        je FIM_TAM_STRING
+        inc cx
+        inc si
+
+        jmp LOOP_TAM_STRING
+
+     FIM_TAM_STRING:
+        pop si
+        pop ax
+        ret
+endp
+ret
+endp
 ;Escrever um caractere na tela               
 ;Entrada DL = caracter a ser impresso
 ESC_CHAR proc 
@@ -306,12 +320,12 @@ endp
 ;DH: linha 
 ;DL: coluna
 POS_CURSOR proc 
-    push AX
-    push BX
-    mov AH, 02 ;Codigo da funcao
+    push ax
+    push bx
+    mov ah, 02 ;Codigo da funcao
     int 10h    ;Interrupcao
-    pop BX
-    pop AX
+    pop bx
+    pop ax
     ret
 endp  
 
@@ -324,101 +338,97 @@ endp
 
 ; Proc destinada ao menu inicial, para trocar os [] das opcoes
 INDICADOR_OPCAO proc
-    push DX
-    push CX
-      
-    mov CH, DH
-      
-    cmp DH, 18
+    push dx
+    push cx
+    mov ch, dh
+    cmp dh, 18
     jz  APAGA_CIMA
     
-    add DH, 2    
+    add dh, 2    
     jmp LIMPA_INDICADOR    
     
     APAGA_CIMA:
-    sub DH, 2
+    sub dh, 2
     
     LIMPA_INDICADOR:
     call POS_CURSOR ;BH = Page Number, DH = Row, DL = Column          
-    mov CL, DL
-    sub DH, 2        
-    mov DL, 32
+    mov cl, dl
+    sub dh, 2        
+    mov dl, 32
     call ESC_CHAR
-    mov DL, 26
-    add DH, 2
+    mov dl, 26
+    add dh, 2
     call POS_CURSOR
-    mov DL, 32
+    mov dl, 32
     call ESC_CHAR
     
-    mov DX, CX
+    mov dx, cx
     call POS_CURSOR ;BH = Page Number, DH = Row, DL = Column
     
-    mov DL, 91    
+    mov dl, 91    
     call ESC_CHAR
-    mov DL, 26
+    mov dl, 26
     call POS_CURSOR
-    mov DL, 93
+    mov dl, 93
     CALL ESC_CHAR
     
-    mov DL, 31
+    mov dl, 31
     call POS_CURSOR ;BH = Page Number, DH = Row, DL = Column          
         
-    pop CX
-    pop DX
+    pop cx
+    pop dx
     ret
 endp    
 
 ; Proc destinada ao menu inicial, retorna a opcao selecionada (jogar ou sair)
 SOLICITAR_OPCAO proc
-    push AX    
+    push ax    
     mov dh, 16
-    mov DL, 14    
+    mov dl, 14    
     call INDICADOR_OPCAO
     
     LER_TECLA: 
-        mov DL, 14
+    mov dl, 14
         call LER_KEY
         ; Compara se o usuario apertou a arrow down
-        cmp AH, 80
+        cmp ah, 80
         je DOWN_ARROW
         ; Compara se o usuario apertou a arrow up
-        cmp AH, 72
+        cmp ah, 72
         je UP_ARROW  
  
-        cmp AH, 28  
+        cmp ah, 28  
         je FIM_SOLICITAR_OPCAO
          
         jmp LER_TECLA 
         UP_ARROW:
-        cmp DH,16
+        cmp dh,16
             jbe LER_TECLA
             
-            sub DH, 2            
+            sub dh, 2            
             jmp FIM_LER_TECLA
             
         DOWN_ARROW:
-            cmp DH,18
+            cmp dh,18
             jae LER_TECLA
             
-            ADD dh, 2
+            add dh, 2
          
         FIM_LER_TECLA:    
             call INDICADOR_OPCAO
         jmp LER_TECLA
         
         FIM_SOLICITAR_OPCAO:    
-    pop AX
+        pop ax
     ret        
 endp
 
 ; Proc principal do menu inicial do jogo
 TELA_INICIAL proc
     ; PRINTA LOGO JOGO
-    mov al, 0 ; write mode
     mov bl, 2 ; cor
     mov dh, 0 ; linha       
     mov dl, 0 ; coluna   
-    mov cx, 315 ; tamanho da string
     mov bp, offset logo_inicio
     call ESC_STRING
     
@@ -440,33 +450,27 @@ TELA_INICIAL proc
     mov di, 28710
     call DESENHA_ELEMENTO
     
-    
-    
     ; PRINTA BOTOES JOGAR E SAIR
     mov bl, 15 ; cor
     mov dh, 16 ; linha      
     mov dl, 18  ; coluna
-    mov cx, 5 ; tamanho da string
     mov bp, offset botao_start
     call ESC_STRING    
     add dh, 2 ; linha
-    mov cx, 4 ; tamanho da string
     mov bp, offset botao_exit
     call ESC_STRING    
     
     ; Chama proc para escolher opcao
     call SOLICITAR_OPCAO
     
-    
     ; Compara se a linha selecionada foi a 18 (SAIR)
-    cmp DH,18
+    cmp dh,18
     je FIM_TELA_INICIAL
     ; Compara se a linha selecionada foi a 16 (JOGAR)
-    cmp DH,16
+    cmp dh,16
     je CHAMA_INICIO
     jmp FIM_TELA_INICIAL
-    
-    
+
     CHAMA_INICIO:   
         call INICIAR_JOGO 
     FIM_TELA_INICIAL:
@@ -474,21 +478,16 @@ TELA_INICIAL proc
     ret
     endp
    
-    
 ;----------------------------------------------------------------------------
 ;
 ;                               PROCs DO JOGO
 ;
 ;----------------------------------------------------------------------------
-
-    
-    
+ 
 ; Proc destinada a inicializar o jogo
 INICIAR_JOGO proc  
     push ax
     push bx
-    push cx
-    push dx
     push si
     push di
     call ZERAR_ASTEROIDES_ATIVOS
@@ -505,7 +504,6 @@ INICIAR_JOGO proc
     mov ax, [si]
     mov clock_jogo, ax
     
-    
     call LIMPAR_TELA
     mov si, offset desenho_nave
     mov di, posicao_central_nave
@@ -519,8 +517,6 @@ INICIAR_JOGO proc
     
     pop di
     pop si
-    pop dx
-    pop cx
     pop bx
     pop ax
     ret
@@ -1546,8 +1542,7 @@ MOVER_OBJETO:
     call COLISAO_TIRO
     cmp dx, 1
     jne FIM_CHECA_OBJETO
-    dec ax
-    mov di, ax
+    dec di
     call REMOVE_DESENHO
     xor ax, ax
     mov [si], ax
@@ -1609,10 +1604,10 @@ CHECAGEM_ASTEROIDES:
      push si
      push di
      mov ax, nivel
-     cmp ax, 5
-     je VENCEU_JOGO
      inc ax
      mov nivel, ax
+     cmp ax, nivel_maximo
+     ja VENCEU_JOGO
      call BARRA_DE_TEMPO
      call RESET_TIMER_ESCUDO
      xor dx, dx 
@@ -1673,8 +1668,6 @@ FINAL_PASSAR_NIVEL:
  ret
  endp
  
- 
- 
  ; al = cor do fundo
  TELA_POS_JOGO proc
     push ax
@@ -1706,23 +1699,19 @@ LOOP_PINTA_LINHA:
 
         loop LOOP_PINTA_TELA_POS_JOGO
         call LIMPAR_TELA
-    mov al, 0 ; write mode
     mov bl, 0fh ; cor
     mov dh, 2 ; linha
     mov dl, 0 ; coluna
-    mov cx, 278 ; tamanho da string
     call ESC_STRING
 
     mov bl, 15 ; cor
     mov dh, 16 ; linha
     mov dl, 17  ; coluna
-    mov cx, 7 ; tamanho da string
     mov bp, offset botao_restart
     call ESC_STRING
 
     mov dl, 18  ; coluna
     add dh, 2 ; linha
-    mov cx, 4 ; tamanho da string
     mov bp, offset botao_exit
     call ESC_STRING
 
@@ -1877,7 +1866,7 @@ DEIXAR_NAVE_IMUNE proc
     mov dx, tempo_imunidade_escudo
     mul dx
     mov timer_imunidade_nave, ax
-      pop di
+     pop di
      pop si
      pop dx
      pop cx
@@ -1886,11 +1875,9 @@ DEIXAR_NAVE_IMUNE proc
 ret
 endp
 
-
  
 ; Proc de LOOP do jogo em funcionamento  
 EM_JOGO proc
-
      LOOP_JOGO:
         call TIMER_ESCUDO
         call TIMER_IMUNIDADE
@@ -1914,7 +1901,6 @@ EM_JOGO proc
         
         ret
 endp
- 
 
 ; funcao main (iniciar)
 inicio:  
@@ -1926,5 +1912,4 @@ inicio:
     call TELA_INICIAL
 
 end inicio
-
 
