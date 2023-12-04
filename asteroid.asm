@@ -118,7 +118,7 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     
     ; Variaveis globais de utilizacao do programa
 
-    velocidades_niveis dw 50000, 40000, 25000, 20000, 10000
+    velocidades_niveis dw 1000, 40000, 25000, 20000, 10000
     divisores_niveis  dw 20, 25, 40, 50, 100
     posicao_atual_nave dw 0
     asteroides dw 32 dup (0)
@@ -1389,146 +1389,9 @@ APAGA_ASTEROIDE proc
     ret
 endp
 
-CHECA_MOVIMENTO_ASTEROIDE proc
-    push ax
-    push bx
-    push cx
-    push dx
-    push di
-    push si
-    mov si, offset posicao_cura
-    mov ax, [si]
-    cmp ax, 0
-    jne MOVE_CURA
-    add si, 2
-    mov ax, [si]
-    cmp ax, 0
-    je CHECA_MOV_SHIELD
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    mov di, ax
-    call REMOVE_DESENHO
-    xor ax, ax
-    mov [si], ax
-    jmp CHECA_MOV_SHIELD
-MOVE_CURA:
-    mov cx, 2
-    call CHECA_COLISAO
-    cmp bx, 1
-    jne MOVER_CURA
-    add si, 2
-    mov ax, [si]
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    mov di, ax
-    call REMOVE_DESENHO
-    mov ax, 0
-    mov [si], ax
-    add si, 2
-    mov [si], ax
-    call BARRA_DE_VIDA
-    jmp CHECA_MOV_SHIELD
-MOVER_CURA:
-    add si, 2
-    mov ax, [si]
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    push si
-    mov si, ax
-    call MOVE_OBJETO
-    pop si
-    dec cx
-    mov [si], cx
-    mov dx, 2
-    call COLISAO_TIRO
-    cmp dx, 1
-    jne CHECA_MOV_SHIELD
-    dec ax
-    mov di, ax
-    call REMOVE_DESENHO
-    mov ax, 0
-    mov [si], ax
-    add si, 2
-    mov [si], ax
-   
-CHECA_MOV_SHIELD:
-    mov si, offset posicao_shield
-    mov ax, [si]
-    cmp ax, 0
-    jne MOVE_SHIELD
-    add si, 2
-    mov ax, [si]
-    cmp ax, 0
-    je CHECAGEM_ASTEROIDES
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    mov di, ax
-    call REMOVE_DESENHO
-    xor ax, ax
-    mov [si], ax
-    jmp CHECAGEM_ASTEROIDES
-MOVE_SHIELD:
-    mov cx, 2
-    call CHECA_COLISAO
-    cmp bx, 1
-    jne MOVER_SHIELD
-    add si, 2
-    mov ax, [si]
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    mov di, ax
-    call REMOVE_DESENHO
-    mov ax, 0
-    mov [si], ax
-    add si, 2
-    mov [si], ax
-    call DEIXAR_NAVE_IMUNE
-    jmp CHECAGEM_ASTEROIDES
-MOVER_SHIELD:
-    add si, 2
-    mov ax, [si]
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
-    push si
-    mov si, ax
-    call MOVE_OBJETO
-    pop si
-    dec cx
-    mov [si], cx
-    mov dx, 2
-    call COLISAO_TIRO
-    cmp dx, 1
-    jne CHECAGEM_ASTEROIDES
-    dec ax
-    mov di, ax
-    call REMOVE_DESENHO
-    mov ax, 0
-    mov [si], ax
-    add si, 2
-    mov [si], ax  
-    
-    
-CHECAGEM_ASTEROIDES:
-  
-    mov si, offset asteroides
+
+CHECA_ASTEROID proc
+mov si, offset asteroides
     mov cx, quantidade_asteroides  
 LOOP_CHECAGEM_ASTEROIDES:   
     xor ax, ax
@@ -1582,7 +1445,155 @@ FINAL_CHECAGEM_ASTEROIDE:
 FIM_LOOP_CHECAGEM_ASTEROIDES:
     add si, 2
     loop LOOP_CHECAGEM_ASTEROIDES
+   ret
+endp
+
+
+;si posicao da memoria (coluna)
+;cx deslocamento
+;retorna em di
+CALCULA_POSICAO_DE_VIDEO:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+
+    add si, cx
+    mov ax, [si]
+    mov bx, 320
+    xor dx, dx
+    mul bx
+    sub si, cx
+    mov bx, [si]
+    add ax, bx
+    mov di, ax
+ 
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+ ret
+endp
+
+
+;si = posicao_curao ou posicao_escudo
+;dx = 1 (colisão)
+CHECA_OBJETO:
+    push ax
+    push bx
+    push cx
+    push di
+    push si
+    xor dx,dx
     
+    mov ax, [si]
+    cmp ax, 0
+    jne MOVIMENTA_OBJETO
+    add si, 2
+    mov ax, [si]
+    cmp ax, 0
+    je FIM_CHECA_OBJETO
+    
+    sub si, 2
+    mov cx, 2 
+    call CALCULA_POSICAO_DE_VIDEO
+    
+    call REMOVE_DESENHO
+    
+    xor ax, ax
+    add si, 2
+    mov [si], ax
+    jmp FIM_CHECA_OBJETO
+    
+MOVIMENTA_OBJETO:
+    
+    mov cx, 2
+    
+    call CHECA_COLISAO
+    cmp bx, 1
+    
+    jne MOVER_OBJETO 
+    
+    mov cx, 2 
+    call CALCULA_POSICAO_DE_VIDEO
+    
+    call REMOVE_DESENHO
+    xor ax,ax
+    mov [si], ax
+    add si, 2
+    mov [si], ax
+    
+    mov dx, 1
+    jmp FIM_CHECA_OBJETO
+
+    
+MOVER_OBJETO:
+    add si, 2
+    mov ax, [si]
+    mov cx, 320
+    mul cx
+    sub si, 2
+    mov cx, [si]
+    add ax, cx
+    push si
+    mov si, ax
+    call MOVE_OBJETO
+    pop si
+    dec cx
+    mov [si], cx
+    mov dx, 2
+    call COLISAO_TIRO
+    cmp dx, 1
+    jne FIM_CHECA_OBJETO
+    dec ax
+    mov di, ax
+    call REMOVE_DESENHO
+    xor ax, ax
+    mov [si], ax
+    add si, 2
+    mov [si], ax
+    
+    xor dx,dx
+FIM_CHECA_OBJETO:
+     pop di
+     pop si
+     pop cx
+     pop bx
+     pop ax
+ ret
+endp
+
+
+CHECA_MOVIMENTO_OBJETO proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+    
+    mov si, offset posicao_cura
+    call CHECA_OBJETO
+    
+    cmp dx, 1  
+    jne CHECA_MOV_SHIELD  
+    call BARRA_DE_VIDA
+
+   
+CHECA_MOV_SHIELD:
+    
+    mov si, offset posicao_shield
+    call CHECA_OBJETO
+    
+    cmp dx, 1
+    jne CHECAGEM_ASTEROIDES
+    call DEIXAR_NAVE_IMUNE
+
+CHECAGEM_ASTEROIDES:
+    call CHECA_ASTEROID
         pop si
         pop di
         pop dx
@@ -1631,8 +1642,8 @@ FIM_LOOP_CHECAGEM_ASTEROIDES:
    call PRINT_BARRA_HUD
    jmp FINAL_PASSAR_NIVEL
     VENCEU_JOGO:
-    mov bp, offset logo_venceu
     mov al, 0eh
+    mov bp, offset logo_venceu
     call TELA_POS_JOGO
    
 FINAL_PASSAR_NIVEL:
@@ -1665,13 +1676,14 @@ FINAL_PASSAR_NIVEL:
  endp
  
  
+ 
  ; al = cor do fundo
  TELA_POS_JOGO proc
     push ax
     push bx
     push cx
     push dx
-    
+
     mov cx, 200
     mov di, 0
 
@@ -1682,8 +1694,8 @@ LOOP_PINTA_LINHA:
     dec dx
     cmp dx, 0
     jne LOOP_PINTA_LINHA
-    
-    
+
+
     push cx
     push ax
         mov ah, 86H
@@ -1693,47 +1705,48 @@ LOOP_PINTA_LINHA:
 
         pop ax
         pop cx
-        
+
         loop LOOP_PINTA_TELA_POS_JOGO
         call LIMPAR_TELA
     mov al, 0 ; write mode
     mov bl, 0fh ; cor
-    mov dh, 2 ; linha       
-    mov dl, 0 ; coluna   
+    mov dh, 2 ; linha
+    mov dl, 0 ; coluna
     mov cx, 278 ; tamanho da string
     call ESC_STRING
-    
+
     mov bl, 15 ; cor
-    mov dh, 16 ; linha      
+    mov dh, 16 ; linha
     mov dl, 17  ; coluna
     mov cx, 7 ; tamanho da string
     mov bp, offset botao_restart
-    call ESC_STRING  
-    
+    call ESC_STRING
+
     mov dl, 18  ; coluna
     add dh, 2 ; linha
     mov cx, 4 ; tamanho da string
     mov bp, offset botao_exit
-    call ESC_STRING    
-    
+    call ESC_STRING
+
     ; Chama proc para escolher opcao
     call SOLICITAR_OPCAO
     cmp DH,18
     je FIM_TELA_POS_JOGO
     cmp DH,16
     je CHAMA_REINICIO
-    jmp FIM_TELA_POS_JOGO   
-     
-    CHAMA_REINICIO:   
+    jmp FIM_TELA_POS_JOGO
+
+    CHAMA_REINICIO:
         pop dx
         pop cx
         pop bx
-        pop ax  
+        pop ax
         call INICIAR_JOGO 
     FIM_TELA_POS_JOGO:
-        call FIM_PROGRAMA   
+        call FIM_PROGRAMA
  ret
  endp
+ 
  RESET_TIMER_ESCUDO proc
      push ax
     push bx
@@ -1887,7 +1900,7 @@ EM_JOGO proc
         call CHECA_MOVIMENTO_NAVE
         call LIMPA_BUFFER_TECLADO
         call PLOTA_NOVO_ASTEROIDE
-        call CHECA_MOVIMENTO_ASTEROIDE
+        call CHECA_MOVIMENTO_OBJETO
         call MOVER_TIRO
         call BLOQUEIA_EXECUCAO_PROGRAMA
         mov bx, jogando
@@ -1896,8 +1909,9 @@ EM_JOGO proc
         
         mov bx, vida_acabou
         cmp bx, 1
-        mov bp, offset logo_perdeu 
+        
         mov al, 4
+        mov bp, offset logo_perdeu 
         call TELA_POS_JOGO
         
         ret
@@ -1915,5 +1929,3 @@ inicio:
  
 
 end inicio
-
-
