@@ -3,7 +3,7 @@
 .data 
     ; Variaveis para alterar a configuracao
     quantidade_asteroides dw 16
-    timer_do_jogo dw 130 ;segundos por nivel
+    timer_do_jogo dw 65 ;segundos por nivel
     cooldown_shield dw 15 ;segundos
     tempo_imunidade_escudo dw 5 ;segundos
     nivel_maximo dw 5
@@ -136,6 +136,7 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     vida_acabou dw 0
     enviar_cura dw 1
     enviar_shield dw 0
+    plotar_cura dw 0
     nivel dw 1  
     
 .code 
@@ -686,10 +687,6 @@ BARRA_TEMPO_JOGO proc
     push si
     push di
     
-    
-    mov di, posicao_barra_tempo
-    
-    
     mov cx, nivel
     
     mov si, offset divisores_niveis
@@ -707,29 +704,45 @@ BARRA_TEMPO_JOGO proc
     mov ax, timer
     dec ax
     mov timer, ax
+    push ax
     div cx
     
+    mov bx, timer_do_jogo
+    
+    cmp bx, 65
+    ja SEM_MULTIPLICACAO
+    
+    xor dx,dx
+    mov cx, 2
+    mul cx    
+ SEM_MULTIPLICACAO:    
+    mov di, posicao_barra_tempo
     add di, ax
 
-    mov si, 0; cor preta
+    push ax
     
-    mov ax, memoria_video
-    mov ds, ax
-    mov cx, 10
+    mov cx, 130    
+    sub cx, ax
     
-   PINTAR_PRETO_BARRA_TEMPO:
-    movsb
-    add di, 319 ; 319 eh para pular a linha, pois o movsb soma di++
-    loop PINTAR_PRETO_BARRA_TEMPO
+    mov dx, 10 ; altura 
+    mov al, 0; cor da barra
     
-    mov ax, @data
-    mov ds, ax
+    call PRINT_BARRA_HUD
+    pop ax
+   
+    mov di, posicao_barra_tempo
+    mov cx, ax ; comprimento da barra 
+    mov al, 0bh ; cor da barra
+    call PRINT_BARRA_HUD
     
-    mov bx, timer
-    cmp bx, 0 ; comparar se o tempo acabou
+    
+    pop ax
+    cmp ax, 0
     jz TIMER_ACABOU
     jmp FIM_GAME_TIMER
    
+   
+    
     TIMER_ACABOU:
     call PASSAR_NIVEL
  FIM_GAME_TIMER:
@@ -1080,8 +1093,44 @@ GERA_NUMERO_ALEATORIO proc
     pop dx
     ret
 endp
+; RETORNA EM DX SE TEM SOBREPOSICAO
+VERIFICA_SOBREPOSICAO proc
+    push ax
+    push cx
+    push si
+    push di
+    push bx
+    ;dx LINHA DO POSSIVEL SPAWN
+    
+    mov si, offset asteroides
+    mov cx, quantidade_asteroides
+LOOP_VERIFICA_SOBREPOSICAO:  
+    mov ax, [si]
+    cmp ax, 277
+    jb FIM_LOOP_SOBREPOSICAO
+    add si, desl_vet_asteroid
+    mov ax, [si]
+    sub ax, 10
+    sub si, desl_vet_asteroid
+    cmp dx, ax
+    jb FIM_LOOP_SOBREPOSICAO
+    add ax, 20
+    cmp dx, ax
+    ja FIM_LOOP_SOBREPOSICAO
+    xor dx, dx
+    jmp FINAL_CHECA_SOBREPOSICAO
+FIM_LOOP_SOBREPOSICAO:
+    add si, 2
+    loop LOOP_VERIFICA_SOBREPOSICAO
 
-
+FINAL_CHECA_SOBREPOSICAO:
+    pop bx
+    pop di
+    pop si
+    pop cx
+    pop ax
+    ret
+endp
 
 ;SI: RECEBE O OFFSET DO DESENHO (asteroide, shield ou cura)
 ;Retonar Linha em DX
@@ -1105,6 +1154,9 @@ PRINTA_OBJETO_DIREITA proc
     
     PLOTAR_DESENHO:
         xor bx, bx
+        call VERIFICA_SOBREPOSICAO
+        cmp dx, 0
+        je FIM_PRINTA_OBJETO_DIREITA
         mov ax, dx ; Retorno da linha em DX
         push dx
         mov bx, 320 ; linha * 320
@@ -1113,8 +1165,9 @@ PRINTA_OBJETO_DIREITA proc
         add ax, bx 
         xor di, di
         mov di, ax
-        call DESENHA_ELEMENTO
         pop dx
+        call DESENHA_ELEMENTO
+    FIM_PRINTA_OBJETO_DIREITA:
         pop bx
         pop di
         pop si
@@ -1122,43 +1175,40 @@ PRINTA_OBJETO_DIREITA proc
         pop ax
     ret
 endp
-
-
-PLOTA_NOVO_ASTEROIDE proc
+PLOTAR_SHIELD proc
     push ax
-    push bx
-    push cx
-    push dx
-    push di
     push si
-    
-    xor ax, ax
-    xor dx, dx
-    
-    mov ax, timer
-    mov cx, 20
-    div cx
-    mov cx, timer_plot_ast
-    cmp ax, cx
-    je FINAL_PLOTA_NOVO_ASTEROIDE
-    
-    mov timer_plot_ast, ax 
-   
-   cmp enviar_shield, 0
-   je PLOTAR_ASTEROIDE
-   mov ax, timer_plot_shield
+    push dx
+    mov cx, 0
+    mov ax, timer_plot_shield
    cmp ax, 0
-   jne PLOTAR_ASTEROIDE
+   jne FIM_PLOTAR_SHIELD
    mov si, offset desenho_shield
    call PRINTA_OBJETO_DIREITA
    call RESET_TIMER_ESCUDO
+   cmp dx, 0
+   je FIM_PLOTAR_SHIELD
    mov si, offset posicao_shield
    mov [si], 308
    add si, 2
    mov [si], dx
-   jmp FINAL_PLOTA_NOVO_ASTEROIDE
+   mov cx, 1
+FIM_PLOTAR_SHIELD:
+   pop dx
+   pop si
+   pop ax
+   ret
+endp
+
+
+PLOTAR_ASTEROIDE_NOVO proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
     
-PLOTAR_ASTEROIDE:
     mov cx, num_asteroides_ativos
     mov ax, quantidade_asteroides
     cmp cx, ax
@@ -1176,8 +1226,9 @@ PLOTAR_ASTEROIDE:
     push si
     mov si, offset desenho_asteroid
     call PRINTA_OBJETO_DIREITA
-    
     pop si
+    cmp dx, 0
+    je FINAL_PLOTA_NOVO_ASTEROIDE
     mov ax, dx
     mov [si], ax
     sub si, desl_vet_asteroid
@@ -1193,7 +1244,56 @@ PLOTAR_ASTEROIDE:
     add si, 2
     loop LOOP_NOVO_AST
     
-   FINAL_PLOTA_NOVO_ASTEROIDE:
+    
+FINAL_PLOTA_NOVO_ASTEROIDE: 
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+ret
+endp
+
+
+PLOTA_NOVO_OBJETO proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+    
+    xor ax, ax
+    xor dx, dx
+    
+    mov ax, timer
+    mov cx, 20
+    div cx
+    mov cx, timer_plot_ast
+    cmp ax, cx
+    je FINAL_PLOTA_NOVO_OBJETO
+    
+    mov timer_plot_ast, ax 
+   
+   cmp enviar_shield, 0
+   je PLOTAR_CURA_VIDA
+   call PLOTAR_SHIELD
+   cmp cx, 1
+   je FINAL_PLOTA_NOVO_OBJETO
+    
+PLOTAR_CURA_VIDA:
+       mov ax, plotar_cura
+    cmp ax, 0
+    jz PLOTAR_ASTEROIDE
+  call ENVIAR_AJUDA   
+  cmp cx, 1
+  je FINAL_PLOTA_NOVO_OBJETO
+   
+PLOTAR_ASTEROIDE:
+   call PLOTAR_ASTEROIDE_NOVO
+    
+   FINAL_PLOTA_NOVO_OBJETO:
         pop si
         pop di
         pop dx
@@ -1253,7 +1353,16 @@ TOMAR_DANO proc
     mov vida, ax
     cmp ax, 5
     ja NAO_ENVIAR_AJUDA
-    call ENVIAR_AJUDA
+    cmp enviar_cura, 1
+    jne NAO_ENVIAR_AJUDA
+    
+    mov si, offset posicao_cura
+    add si, 2
+    mov bx, [si]
+    cmp bx, 0
+    jne NAO_ENVIAR_AJUDA
+    
+    mov plotar_cura, 1
 NAO_ENVIAR_AJUDA:
     mov bx, 13
     mul bx
@@ -1783,31 +1892,30 @@ LOOP_PINTA_LINHA:
  ENVIAR_AJUDA proc
  push ax
  push bx
- push cx
  push dx
  push si
  push di
- 
-    mov ax, enviar_cura
-    cmp ax, 0
-    jz FINAL_VERIF_AJUDA
+ mov cx, 0
     mov ax, vida
     cmp ax, 5
     ja FINAL_VERIF_AJUDA
     
     mov si, offset desenho_cura 
     call PRINTA_OBJETO_DIREITA
+    cmp dx, 0
+    je FINAL_VERIF_AJUDA
     mov si, offset posicao_cura
     mov [si], 308
     add si, 2
     mov [si], dx
     mov enviar_cura, 0
+    mov plotar_cura, 0
+    mov cx, 1
     
 FINAL_VERIF_AJUDA:
     pop di
     pop si
     pop dx
-    pop cx
     pop bx
     pop ax
  ret
@@ -1884,7 +1992,7 @@ EM_JOGO proc
         call BARRA_TEMPO_JOGO
         call CHECA_MOVIMENTO_NAVE
         call LIMPA_BUFFER_TECLADO
-        call PLOTA_NOVO_ASTEROIDE
+        call PLOTA_NOVO_OBJETO
         call CHECA_MOVIMENTO_OBJETO
         call MOVER_TIRO
         call BLOQUEIA_EXECUCAO_PROGRAMA
@@ -1912,4 +2020,3 @@ inicio:
     call TELA_INICIAL
 
 end inicio
-
