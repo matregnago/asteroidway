@@ -112,7 +112,7 @@ desenho_asteroid db  0 , 0 , 0 ,0Fh,0Fh,0Fh,0Fh, 0 , 0 , 0
     posicao_barra_tempo equ 59375 ;coluna 175 linha 185
     posicao_central_nave equ 30234 ; nave centralizada (coluna 154 linha 94)
     posicao_barra_nivel equ 59355 ; coluna 155 linha 185 nivel do jogo
-    poiscao_nivel_um equ 61915 ; posicao de print do nivel 1
+    posicao_nivel_um equ 61915 ; posicao de print do nivel 1
     
     
     
@@ -580,7 +580,7 @@ PRINT_HUD proc
    call PRINT_BARRA_HUD
    
    mov dx, 2 ; altura
-    mov di, poiscao_nivel_um
+   mov di, posicao_nivel_um
     mov al, 0eh ; cor da barra
     mov cx, 10 ; comprimento da barra
    
@@ -596,9 +596,7 @@ BARRA_DE_TEMPO proc
     push bx
     push cx
     push dx
-    
-    
-    
+      
     mov si, offset divisores_niveis
     mov ax, nivel
     dec ax
@@ -606,7 +604,6 @@ BARRA_DE_TEMPO proc
     xor dx,dx
     mul bx
     mov cx,ax
-    
     
     add si, cx
     mov cx, [si]
@@ -917,12 +914,13 @@ CRIA_TIRO proc
         add ax, bx
         
         mov di, ax
-    
+        mov dx,0fh
+        
         mov ax, memoria_video
         mov ds, ax
         mov cx, 10
-    
-        mov [di], 0fh
+ 
+        mov [di], dx
             
         mov ax, @data
         mov ds, ax
@@ -957,16 +955,17 @@ REMOVER_TIRO proc
         mov di, ax
         mov ax, memoria_video
         mov ds, ax
-    
-        mov [di], 0
+        xor dx,dx 
+        mov [di], dx
             
         mov ax, @data
         mov ds, ax
-
+        
         mov ax, [si]
-        mov [si], 0
+        
+        mov [si], dx
         add si,2
-        mov [si], 0
+        mov [si], dx
         
         pop di
         pop si
@@ -993,29 +992,26 @@ MOVER_TIRO proc
         mov ax, [si]
         cmp ax, 0
         jz FIM_MOVER_TIRO
-        mov bx, 320
-        xor dx,dx
-        mul bx
-        mov bx, ax
+        
         sub si, 2
-        mov ax, [si]
-        push ax
-        add ax, bx 
         
-        mov di, ax
+        mov cx, 2
+        call CALCULA_POSICAO_DE_VIDEO
         
+        xor dx,dx
+        mov bx,0fh
         mov ax, memoria_video
         mov ds, ax
         mov cx, 10
     
-        mov [di], 0
+        mov [di], dx
         inc di
-        mov [di], 0fh
+        mov [di], bx
             
         mov ax, @data
         mov ds, ax
-        
-        pop ax
+  
+        mov ax, [si]
         inc ax
         mov [si], ax
         
@@ -1315,16 +1311,16 @@ CHECA_COLISAO proc
     jb FINAL_CHECA_COLISAO
   
     mov ax, posicao_atual_nave
+    
     sub ax, 154
     push cx
     mov cx, 320
-
     div cx
     mov dx, ax
     pop cx
     add si, cx
- 
     mov ax, [si]
+    
     add ax, 10
     
     cmp ax, dx
@@ -1358,16 +1354,9 @@ APAGA_ASTEROIDE proc
     
     xor dx, dx
     
-    add si, desl_vet_asteroid
-    mov ax, [si]
+    mov cx, desl_vet_asteroid
+    call CALCULA_POSICAO_DE_VIDEO
     
-    mov bx, 320
-    mul bx
-    mov dx, ax
-    sub si, desl_vet_asteroid
-    mov ax, [si]
-    add ax, dx 
-    mov di, ax
     call REMOVE_DESENHO
     
     mov ax, 0
@@ -1391,8 +1380,16 @@ endp
 
 
 CHECA_ASTEROID proc
-mov si, offset asteroides
-    mov cx, quantidade_asteroides  
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+    
+    mov si, offset asteroides
+    mov cx, quantidade_asteroides
+    
 LOOP_CHECAGEM_ASTEROIDES:   
     xor ax, ax
     xor dx, dx
@@ -1411,16 +1408,14 @@ LOOP_CHECAGEM_ASTEROIDES:
     pop cx
     cmp bx, 1
     jz COLISAO_COM_ASTEROIDE
-    add si, desl_vet_asteroid
-    mov ax, [si]
-    mov bx, 320
-    mul bx
-    mov dx, ax
-    sub si, desl_vet_asteroid
-    mov ax, [si]
-    add ax, dx
+    
+    push cx
+    mov cx, desl_vet_asteroid
+    call CALCULA_POSICAO_DE_VIDEO
+    pop cx
+     
     push si
-    mov si, ax
+    mov si, di
     call MOVE_OBJETO
     
     pop si
@@ -1445,9 +1440,15 @@ FINAL_CHECAGEM_ASTEROIDE:
 FIM_LOOP_CHECAGEM_ASTEROIDES:
     add si, 2
     loop LOOP_CHECAGEM_ASTEROIDES
+    
+    pop si
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
    ret
 endp
-
 
 ;si posicao da memoria (coluna)
 ;cx deslocamento
@@ -1480,7 +1481,7 @@ endp
 
 
 ;si = posicao_curao ou posicao_escudo
-;dx = 1 (colisão)
+;dx = 1 (colis?o)
 CHECA_OBJETO:
     push ax
     push bx
@@ -1531,17 +1532,14 @@ MOVIMENTA_OBJETO:
 
     
 MOVER_OBJETO:
-    add si, 2
-    mov ax, [si]
-    mov cx, 320
-    mul cx
-    sub si, 2
-    mov cx, [si]
-    add ax, cx
+    mov cx, 2
+    call CALCULA_POSICAO_DE_VIDEO
+    mov cx, [si] 
     push si
-    mov si, ax
+    mov si, di
     call MOVE_OBJETO
     pop si
+    
     dec cx
     mov [si], cx
     mov dx, 2
@@ -1629,7 +1627,7 @@ CHECAGEM_ASTEROIDES:
      mov enviar_cura,1
      mov enviar_shield, 1
      
-     mov bx, poiscao_nivel_um
+     mov bx, posicao_nivel_um
      mov cx, 320
      mul cx
      sub bx, ax
@@ -1926,6 +1924,7 @@ inicio:
     mov es, ax
     call MODO_DE_VIDEO
     call TELA_INICIAL
- 
 
 end inicio
+
+
