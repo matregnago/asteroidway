@@ -787,24 +787,11 @@ LOOP_HUD_FUNDO:
 SEM_MULTIPLICACAO:            ; caso utilize valores maiores que 65s, ira pintar apenas 1px de cada vez
     mov di, posicao_barra_tempo
     add di, ax
-    
-    push ax
-    
     mov cx, 130
     sub cx, ax
-    
     mov dx, 10                   ; altura
     mov al, 0                    ; cor da barra
-    
     call PRINT_BARRA_HUD
-    pop ax
-    
-    mov di, posicao_barra_tempo
-    mov cx, ax                   ; comprimento da barra
-    mov al, 0bh                  ; cor da barra
-    call PRINT_BARRA_HUD
-    
-    
     pop ax
     cmp ax, 0
     jz TIMER_ACABOU
