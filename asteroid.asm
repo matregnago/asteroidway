@@ -893,26 +893,25 @@ MOVE_NAVE_BAIXO_LOOP:
     ;Funcao destinada a checar a tecla digitada e direcionar a nave para as proc de mover
     ; para cima, baixo e checa a barra de espaco para atirar
     CHECA_MOVIMENTO_NAVE proc
-    
     push ax
     push bx
     push cx
     push dx
     push si
     push di
-    MOV AH, 01h
-    INT 16h
-    JZ FIM_MOVIMENTO_NAVE
+    mov ah, 01h
+    int 16h
+    jz FIM_MOVIMENTO_NAVE
     call LER_KEY
     
     ; Compara se o usuario apertou a arrow down
-    cmp AH, 80
+    cmp ah, 80
     jz MOVER_PARA_BAIXO
     ; Compara se o usuario apertou a arrow up
-    cmp AH, 72
+    cmp ah, 72
     jz MOVER_PARA_CIMA
     ; Compara se o usuario apertou a barra de espaco
-    cmp AL, 32
+    cmp al, 32
     jz ATIRAR
     jmp FIM_MOVIMENTO_NAVE
     
@@ -1614,7 +1613,7 @@ LOOP_CHECAGEM_ASTEROIDES:
     mov ax, [si]
     sub si, desl_vet_asteroid
     cmp ax, 0
-    jz FINAL_CHECAGEM_ASTEROIDE
+    jz FIM_LOOP_CHECAGEM_ASTEROIDES
     
     mov ax, [si]
     cmp ax, 0
@@ -1640,7 +1639,7 @@ LOOP_CHECAGEM_ASTEROIDES:
     dec ax
     mov [si], ax
     
-    jmp FINAL_CHECAGEM_ASTEROIDE
+    jmp TESTE_COLISAO_COM_TIRO
     
 COLISAO_COM_ASTEROIDE:
     cmp imune, 1
@@ -1655,9 +1654,10 @@ REMOVER_ASTEROIDE:
     mov ax, num_asteroides_ativos
     dec ax
     mov num_asteroides_ativos, ax
+    jmp FIM_LOOP_CHECAGEM_ASTEROIDES
     
     
-FINAL_CHECAGEM_ASTEROIDE:
+TESTE_COLISAO_COM_TIRO:
     
     mov dx, desl_vet_asteroid
     call COLISAO_TIRO
